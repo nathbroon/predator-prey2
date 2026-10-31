@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dynamic Attractions II</title>
+<meta name="description" content="Dynamic Attractions II: an evolving three-level artificial life ecosystem of grass, prey and predators with heritable genomes. Runs entirely in the browser.">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+
+<style>
+/* Layout: field-station console. World view + control drawer side by side; instruments (census, phase, traits, genomes, lineages) in a grid beneath. */
+:root{
+  --bg:#eef0eb; --panel:#fbfcfa; --ink:#1c241d; --muted:#5d6a5f; --line:#d6dcd3; --soft:#e6eae3;
+  --soil:#2a241b; --grass:#5b9a43; --screen:#171c16;
+  --prey:#e9a93a; --pred:#d9473f; --accent:#2b7489; --accent-ink:#ffffff;
+  --good:#3f8f53; --warn:#b7791f;
+  --f-display:"Avenir Next","Segoe UI Variable Display","Helvetica Neue",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111511; --panel:#181d18; --ink:#e3e8e1; --muted:#97a397; --line:#2b332b; --soft:#20271f;
+  --soil:#1d1913; --grass:#6aac4f; --screen:#0c0f0b;
+  --prey:#f2b84e; --pred:#ee6158; --accent:#5fb3c9; --accent-ink:#0b1a1f;
+  --good:#5cb070; --warn:#d6a046; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#111511; --panel:#181d18; --ink:#e3e8e1; --muted:#97a397; --line:#2b332b; --soft:#20271f;
+  --soil:#1d1913; --grass:#6aac4f; --screen:#0c0f0b;
+  --prey:#f2b84e; --pred:#ee6158; --accent:#5fb3c9; --accent-ink:#0b1a1f;
+  --good:#5cb070; --warn:#d6a046; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14.5px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 24px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(24px,3.2vw,34px);letter-spacing:-0.02em;margin:0;line-height:1.1;text-wrap:balance}
+h1 .ii{color:var(--accent)}
+.sub{color:var(--muted);font-family:var(--f-mono);font-size:12.5px;margin-top:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--prey)}
+.tri{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--pred);display:inline-block}
+.sq{width:11px;height:11px;border-radius:2px;display:inline-block;background:linear-gradient(90deg,var(--soil),var(--grass))}
+
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:1060px){.stage{grid-template-columns:1fr}}
+.left{display:flex;flex-direction:column;gap:10px;min-width:0}
+.screen{background:var(--screen);border-radius:10px;padding:8px;position:relative}
+#world{display:block;width:100%;height:auto;border-radius:5px;cursor:crosshair;touch-action:manipulation}
+.viewbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px;color:var(--muted)}
+.transport{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+button{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:6px 13px;cursor:pointer;min-height:36px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);min-width:88px}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select,input[type=number]{font:inherit;font-size:13.5px;padding:5px 7px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);max-width:100%}
+input[type=number]{width:9ch;font-family:var(--f-mono)}
+.speed{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.speed input{width:120px;accent-color:var(--accent)}
+.speed output{font-family:var(--f-mono);min-width:6ch;color:var(--ink)}
+.readouts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font-family:var(--f-mono);font-size:12.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-variant-numeric:tabular-nums;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.chip.out{opacity:.5;text-decoration:line-through}
+.clock{margin-left:auto;font-family:var(--f-mono);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.clock b{color:var(--ink);font-weight:500}
+.kbd{font-size:12px;color:var(--muted)}
+kbd{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
+
+.drawer{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;max-height:calc(100vh - 40px);position:sticky;top:12px;min-width:0}
+@media (max-width:1060px){.drawer{position:static;max-height:none}}
+.drawer-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.drawer-head h2{font-family:var(--f-display);font-size:16px;margin:0;font-weight:600}
+.drawer-body{overflow:auto;padding:4px 14px 14px}
+.row2{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+details{border-bottom:1px solid var(--line);padding:6px 0}
+details:last-child{border-bottom:0}
+summary{cursor:pointer;font-weight:600;font-size:14px;padding:6px 0;list-style:none;display:flex;justify-content:space-between;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--muted);font-family:var(--f-mono);font-weight:400}
+details[open] summary::after{content:"−"}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:0 8px;align-items:center;padding:5px 0}
+.ctl label{font-size:13px}
+.ctl output{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent);margin:2px 0 0}
+.ctl .when{grid-column:1/-1;font-size:11px;color:var(--muted);font-family:var(--f-mono);letter-spacing:.02em}
+.ctl.sw{grid-template-columns:auto 1fr}
+.ctl.sw label{display:flex;gap:8px;align-items:center}
+.note{font-size:12.5px;color:var(--muted);margin:2px 0 6px}
+
+.grid{display:grid;gap:16px;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px;min-width:0}
+.card h3{font-family:var(--f-display);font-weight:600;font-size:15.5px;margin:0}
+.card .cap{margin:2px 0 10px;color:var(--muted);font-size:12.5px;max-width:75ch}
+.cardhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 12px}
+.cardhead .row2{font-size:12.5px;color:var(--muted)}
+canvas.chart{width:100%;display:block}
+.traits{display:grid;gap:10px 14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.trait{min-width:0}
+.trait .tn{display:flex;justify-content:space-between;gap:6px;font-size:12.5px}
+.trait .tn b{font-weight:600}
+.trait .tv{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.insp{font-size:13px;display:flex;flex-direction:column;gap:8px}
+.insp .who{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.insp table{border-collapse:collapse;width:100%;font-size:12.5px}
+.insp td{padding:2px 4px;border-bottom:1px solid var(--soft)}
+.insp td:first-child{color:var(--muted)}
+.insp td.v{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{height:6px;background:var(--soft);border-radius:3px;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.empty{color:var(--muted);font-size:13px}
+.howto{font-size:13.5px;color:var(--ink)}
+.howto h4{font-family:var(--f-display);font-size:14px;margin:12px 0 2px}
+.howto p,.howto ul{margin:4px 0;max-width:78ch;color:var(--muted)}
+.howto ul{padding-left:18px}
+.howto code{font-family:var(--f-mono);font-size:12px;color:var(--ink)}
+.toast{font-size:12.5px;color:var(--muted);min-height:1.2em}
+.three{display:grid;gap:16px;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:1060px){.three{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Dynamic Attractions <span class="ii">II</span></h1>
+      <div class="sub">an evolving three-level ecosystem · descended from predator-prey-20.hs (1999)</div>
+    </div>
+    <div class="legend" aria-label="Legend">
+      <span><i class="sq"></i>grass</span>
+      <span><i class="dot"></i>prey (grazers)</span>
+      <span><i class="tri"></i>predators</span>
+      <span class="kbd"><kbd>Space</kbd> play/pause · <kbd>→</kbd> step · <kbd>R</kbd> reset</span>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="left">
+      <div class="screen"><canvas id="world" aria-label="World view. Click an animal to inspect and follow it."></canvas></div>
+      <div class="viewbar">
+        <label for="colourBy">Colour animals by</label>
+        <select id="colourBy">
+          <option value="species">Species</option>
+          <option value="lineage">Lineage marker</option>
+          <option value="energy">Energy</option>
+          <option value="trait">Trait…</option>
+        </select>
+        <select id="colourTrait" hidden aria-label="Trait to colour by"></select>
+        <label for="layer">Ground shows</label>
+        <select id="layer">
+          <option value="grass">Grass</option>
+          <option value="fert">Soil fertility</option>
+          <option value="sy">Prey scent</option>
+          <option value="sd">Predator scent</option>
+          <option value="none">Nothing</option>
+        </select>
+      </div>
+      <div class="transport">
+        <button id="play" class="primary">Pause</button>
+        <button id="stepBtn">Step</button>
+        <button id="skip">Skip 500</button>
+        <button id="reset">Reset</button>
+        <label class="speed" for="speed">Speed <input id="speed" type="range" min="1" max="240" value="30"><output id="speedOut">30/s</output></label>
+        <button id="addPrey">+25 prey</button>
+        <button id="addPred">+10 predators</button>
+      </div>
+      <div class="readouts">
+        <div id="chips" class="readouts"></div>
+        <div class="clock">step <b id="tOut">0</b> · generations <b id="genOut">0 / 0</b></div>
+      </div>
+    </div>
+
+    <aside class="drawer" aria-label="Parameters">
+      <div class="drawer-head">
+        <h2>Parameters</h2>
+        <div class="row2">
+          <select id="preset" aria-label="Preset"></select>
+        </div>
+        <div class="row2">
+          <label for="seed" style="font-size:13px">Seed</label><input id="seed" type="number" min="1" max="999999" value="1999">
+          <button id="reseed">New seed</button>
+        </div>
+        <div class="note" id="presetNote"></div>
+      </div>
+      <div class="drawer-body" id="params"></div>
+    </aside>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cardhead"><h3>Population census</h3>
+        <div class="row2"><label for="win">Window</label><select id="win"><option value="600">600 steps</option><option value="2000" selected>2,000 steps</option><option value="100000">Whole run</option></select></div>
+      </div>
+      <p class="cap">Prey and predator counts (left axis) over standing grass as a share of capacity (shaded, right axis).</p>
+      <canvas id="census" class="chart" height="240"></canvas>
+    </div>
+    <div class="card">
+      <h3>Phase plot</h3>
+      <p class="cap">Predators against prey over the same window. The trail fades with age; loops are predator–prey cycles.</p>
+      <canvas id="phase" class="chart" height="240"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h3>Evolving traits</h3><span class="cap" style="margin:0">Population mean (line) and spread of ±1 standard deviation (band), in real units.</span></div>
+    <div class="traits" id="traits" style="margin-top:10px"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cardhead"><h3>Genome scatter</h3>
+        <div class="row2">
+          <select id="scSp" aria-label="Species"><option value="prey">Prey</option><option value="pred">Predators</option></select>
+          <select id="scX" aria-label="x trait"></select>
+          <select id="scY" aria-label="y trait"></select>
+        </div>
+      </div>
+      <p class="cap">Every living animal, coloured by lineage marker. The ring is the population mean.</p>
+      <canvas id="scatter" class="chart" height="300"></canvas>
+    </div>
+    <div class="card">
+      <div class="cardhead"><h3>Lineage river</h3>
+        <div class="row2"><select id="lrSp" aria-label="Species"><option value="prey">Prey</option><option value="pred">Predators</option></select></div>
+      </div>
+      <p class="cap">The lineage marker is a neutral gene that drifts. Each band is a family line; bands that widen are winning, bands that end have gone extinct.</p>
+      <canvas id="river" class="chart" height="300"></canvas>
+    </div>
+  </div>
+
+  <div class="three">
+    <div class="card">
+      <h3>Inspector</h3>
+      <p class="cap">Click an animal in the world to follow it.</p>
+      <div id="insp" class="insp"><div class="empty">Nobody selected yet.</div></div>
+    </div>
+    <div class="card">
+      <h3>Run log</h3>
+      <p class="cap">Totals since the last reset.</p>
+      <div id="log" class="insp"></div>
+      <div class="row2" style="margin-top:10px"><button id="copyCsv">Copy census CSV</button><span class="toast" id="toast"></span></div>
+      <textarea id="csvFallback" hidden readonly rows="4" style="width:100%;margin-top:8px;font-family:var(--f-mono);font-size:11.5px"></textarea>
+    </div>
+    <div class="card howto">
+      <h3>How it works</h3>
+      <h4>Genome</h4>
+      <p>Eleven genes between 0 and 1, each mapped to a trait: body size, speed, sensing range, three pulls (to grass, prey scent and predator scent), choice randomness, investment per child, breeding threshold, mutation size, and a neutral lineage marker.</p>
+      <h4>World</h4>
+      <p>A wrap-around landscape of grass that regrows towards a capacity set by soil fertility, optionally with seasons. Animals leave scent that spreads and fades.</p>
+      <h4>Behaviour</h4>
+      <p>Each step an animal scores its own spot and eight directions by its pulls, then picks one by a softmax. Low randomness means "go to the best", as in the 1999 code; high randomness approaches the roulette wheel its comments describe.</p>
+      <h4>Life</h4>
+      <ul>
+        <li>Upkeep scales with size<sup>0.75</sup>, movement with size × speed², sensing with range.</li>
+        <li>Prey graze; predators catch nearby prey with odds set by relative speed and size, then digest for a while.</li>
+        <li>Above its breeding threshold an animal gives a share of its energy to a child: cloned and mutated, or crossed with a nearby mate using the 1999 blend operator.</li>
+        <li>Animals die of starvation, old age, or being eaten.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+// Dynamic Attractions II — simulation engine
+// Toroidal continuous world over a cell grid. Three trophic levels:
+// grass (field), prey (grazers), predators. Heritable genome of 11 genes in [0,1].
+
+const GENES = [
+  { key: 'size',  name: 'Body size',          lo: 0.5,  hi: 2.0,  fmt: 2 },
+  { key: 'speed', name: 'Speed',              lo: 0.2,  hi: 1.6,  fmt: 2 },
+  { key: 'sense', name: 'Sensing range',      lo: 1.0,  hi: 7.0,  fmt: 1 },
+  { key: 'wG',    name: 'Pull to grass',      lo: -1,   hi: 1,    fmt: 2 },
+  { key: 'wPy',   name: 'Pull to prey scent', lo: -1,   hi: 1,    fmt: 2 },
+  { key: 'wPd',   name: 'Pull to predator scent', lo: -1, hi: 1,  fmt: 2 },
+  { key: 'temp',  name: 'Choice randomness',  lo: 0.02, hi: 2.0,  log: true, fmt: 2 },
+  { key: 'inv',   name: 'Investment per child', lo: 0.15, hi: 0.8, fmt: 2 },
+  { key: 'mat',   name: 'Breeding threshold', lo: 0.3,  hi: 0.95, fmt: 2 },
+  { key: 'mut',   name: 'Mutation size',      lo: 0.004, hi: 0.15, log: true, fmt: 3 },
+  { key: 'hue',   name: 'Lineage marker',     lo: 0,    hi: 1,    neutral: true, fmt: 2 },
+];
+const NG = GENES.length, HUE = 10, HB = 36;
+function pheno(i, g) {
+  const d = GENES[i];
+  return d.log ? d.lo * Math.pow(d.hi / d.lo, g) : d.lo + (d.hi - d.lo) * g;
+}
+function toGene(i, v) {
+  const d = GENES[i];
+  return d.log ? Math.log(v / d.lo) / Math.log(d.hi / d.lo) : (v - d.lo) / (d.hi - d.lo);
+}
+
+// Species templates: starting genomes in phenotype units
+const TEMPLATE = {
+  prey: { size: 1.0, speed: 0.7, sense: 3, wG: 0.7, wPy: 0.0, wPd: -0.7, temp: 0.25, inv: 0.45, mat: 0.6, mut: 0.03 },
+  pred: { size: 1.3, speed: 0.95, sense: 4, wG: 0.0, wPy: 0.8, wPd: -0.1, temp: 0.25, inv: 0.45, mat: 0.6, mut: 0.03 },
+};
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const DEFAULTS = {
+  W: 96, H: 64, seed: 1999,
+  // grass
+  K: 20, growth: 0.01, patchiness: 0.6, patchScale: 12, season: 0.0, seasonLen: 600,
+  // prey
+  nPrey: 350, preyBasal: 0.45, preyBite: 1.5, preyEff: 0.8, preyLife: 400,
+  // predators
+  nPred: 30, predBasal: 0.25, predEff: 0.33, catchP: 0.35, handling: 10, predLife: 600, bodyValue: 50,
+  // shared costs
+  moveCost: 0.35, senseCost: 0.04, birthCost: 4,
+  // evolution
+  sexual: false, crossover: 0.5, mutMult: 1.0, diversity: 0.25, randomStart: false, immig: 2,
+  // behaviour
+  inertia: 0.15, satiety: 0.7, interference: 3, scentDiff: 0.5, scentDecay: 0.12,
+  maxAgents: 6000,
+};
+
+function makeWorld(P0) {
+  const P = Object.assign({}, DEFAULTS, P0);
+  const rng = mulberry32(P.seed >>> 0 || 1);
+  const R = () => rng();
+  const gauss = () => { let u = 0, v = 0; while (u === 0) u = R(); v = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const W = P.W, H = P.H, N = W * H;
+
+  // ---------- fields ----------
+  const fert = new Float32Array(N), G = new Float32Array(N);
+  const Sy = new Float32Array(N), Sd = new Float32Array(N), tmp = new Float32Array(N);
+  function buildFertility() {
+    const sc = Math.max(2, P.patchScale), gw = Math.ceil(W / sc) + 1, gh = Math.ceil(H / sc) + 1;
+    const lat = new Float32Array(gw * gh); for (let i = 0; i < lat.length; i++) lat[i] = R();
+    // toroidal value noise: wrap lattice
+    const cw = Math.max(1, Math.round(W / sc)), ch = Math.max(1, Math.round(H / sc));
+    const at = (i, j) => lat[((j % ch + ch) % ch) * gw + ((i % cw + cw) % cw)];
+    const sm = t => t * t * (3 - 2 * t);
+    let mn = 1e9, mx = -1e9; const raw = new Float32Array(N);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const fx = x / W * cw, fy = y / H * ch, i = Math.floor(fx), j = Math.floor(fy), u = sm(fx - i), v = sm(fy - j);
+      const a = at(i, j) * (1 - u) + at(i + 1, j) * u, b = at(i, j + 1) * (1 - u) + at(i + 1, j + 1) * u;
+      const n = a * (1 - v) + b * v; raw[y * W + x] = n; if (n < mn) mn = n; if (n > mx) mx = n;
+    }
+    const p = Math.min(1, Math.max(0, P.patchiness));
+    for (let k = 0; k < N; k++) { const n = (raw[k] - mn) / Math.max(1e-6, mx - mn); fert[k] = Math.max(0, 1 - p + 2 * p * n); }
+  }
+  buildFertility();
+  for (let k = 0; k < N; k++) G[k] = P.K * fert[k] * (0.5 + 0.5 * R());
+
+  // ---------- agents ----------
+  let nextId = 1;
+  const agents = { prey: [], pred: [] };
+  function genomeFrom(sp) {
+    const g = new Float32Array(NG), t = TEMPLATE[sp];
+    for (let i = 0; i < NG; i++) {
+      if (i === HUE) { g[i] = R(); continue; }
+      if (P.randomStart) { g[i] = R(); continue; }
+      g[i] = Math.min(1, Math.max(0, toGene(i, t[GENES[i].key]) + gauss() * P.diversity * 0.5));
+    }
+    return g;
+  }
+  function express(a) {
+    const g = a.g;
+    a.size = pheno(0, g[0]); a.speed = pheno(1, g[1]); a.sense = pheno(2, g[2]);
+    a.wG = pheno(3, g[3]); a.wPy = pheno(4, g[4]); a.wPd = pheno(5, g[5]);
+    a.temp = pheno(6, g[6]); a.inv = pheno(7, g[7]); a.mat = pheno(8, g[8]); a.mut = pheno(9, g[9]);
+    a.Emax = 100 * a.size;
+    a.cost = (a.sp === 'prey' ? P.preyBasal : P.predBasal) * Math.pow(a.size, 0.75) + P.senseCost * a.sense;
+    a.mcost = P.moveCost * a.size * a.speed * a.speed;
+  }
+  function spawn(sp, g, x, y, E, gen, parent) {
+    const a = { id: nextId++, sp, g, x, y, hd: R() * 2 * Math.PI, E, age: 0, gen, kills: 0, kids: 0, handle: 0, parent, dead: false, born: t };
+    express(a);
+    a.life = (sp === 'prey' ? P.preyLife : P.predLife) * (0.8 + 0.4 * R());
+    if (a.E > a.Emax) a.E = a.Emax;
+    agents[sp].push(a); return a;
+  }
+  let t = 0;
+  function seedPop(sp, n, genomeFn) {
+    for (let i = 0; i < n; i++) {
+      const g = genomeFn ? genomeFn() : genomeFrom(sp);
+      const a = spawn(sp, g, R() * W, R() * H, 0, 0, 0); a.E = a.Emax * (0.4 + 0.3 * R());
+    }
+  }
+  seedPop('prey', P.nPrey); seedPop('pred', P.nPred);
+
+  // ---------- helpers ----------
+  const wrapX = x => (x % W + W) % W, wrapY = y => (y % H + H) % H;
+  const cellOf = (x, y) => (Math.floor(wrapY(y)) % H) * W + (Math.floor(wrapX(x)) % W);
+  const DIRX = [], DIRY = [];
+  for (let k = 0; k < 8; k++) { DIRX.push(Math.cos(k * Math.PI / 4)); DIRY.push(Math.sin(k * Math.PI / 4)); }
+  const S0 = 1.5;
+
+  // spatial hash (bucket = 2 cells)
+  const BS = 2, BW = Math.ceil(W / BS), BH = Math.ceil(H / BS), NB = BW * BH;
+  function buildHash(list) {
+    const cnt = new Int32Array(NB + 1), idx = new Int32Array(list.length), bk = new Int32Array(list.length);
+    for (let i = 0; i < list.length; i++) { const a = list[i]; const b = (Math.floor(a.y / BS) % BH) * BW + (Math.floor(a.x / BS) % BW); bk[i] = b; cnt[b + 1]++; }
+    for (let b = 0; b < NB; b++) cnt[b + 1] += cnt[b];
+    const fill = cnt.slice(0, NB);
+    for (let i = 0; i < list.length; i++) idx[fill[bk[i]]++] = i;
+    return { start: cnt, idx, list };
+  }
+  function near(h, x, y, r, fn) {
+    const bx0 = Math.floor((x - r) / BS), bx1 = Math.floor((x + r) / BS), by0 = Math.floor((y - r) / BS), by1 = Math.floor((y + r) / BS);
+    for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) {
+      const b = ((by % BH + BH) % BH) * BW + ((bx % BW + BW) % BW);
+      for (let k = h.start[b]; k < h.start[b + 1]; k++) {
+        const a = h.list[h.idx[k]]; if (a.dead) continue;
+        let dx = a.x - x, dy = a.y - y;
+        if (dx > W / 2) dx -= W; else if (dx < -W / 2) dx += W;
+        if (dy > H / 2) dy -= H; else if (dy < -H / 2) dy += H;
+        const d2 = dx * dx + dy * dy; if (d2 <= r * r) fn(a, d2);
+      }
+    }
+  }
+
+  function score(a, x, y) {
+    const k = cellOf(x, y), Kc = P.K;
+    return a.wG * (G[k] / Kc) + a.wPy * Math.tanh(Sy[k] / S0) + a.wPd * Math.tanh(Sd[k] / S0);
+  }
+  const sc = new Float64Array(9);
+  function decideMove(a) {
+    // option 8 = stay; 0..7 = directions, sampled at sense and sense/2
+    let best = -1e9;
+    for (let k = 0; k < 8; k++) {
+      const r1 = a.sense, r2 = a.sense * 0.5;
+      let s = 0.5 * score(a, a.x + DIRX[k] * r1, a.y + DIRY[k] * r1) + 0.5 * score(a, a.x + DIRX[k] * r2, a.y + DIRY[k] * r2);
+      let dh = Math.abs(((k * Math.PI / 4 - a.hd) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+      if (dh < Math.PI / 8 + 1e-6) s += P.inertia;
+      sc[k] = s; if (s > best) best = s;
+    }
+    sc[8] = score(a, a.x, a.y); if (sc[8] > best) best = sc[8];
+    let tot = 0; for (let k = 0; k < 9; k++) { sc[k] = Math.exp((sc[k] - best) / a.temp); tot += sc[k]; }
+    let r = R() * tot, c = 8; for (let k = 0; k < 9; k++) { r -= sc[k]; if (r <= 0) { c = k; break; } }
+    if (c === 8) return false;
+    a.hd = c * Math.PI / 4 + (R() - 0.5) * 0.4;
+    a.x = wrapX(a.x + Math.cos(a.hd) * a.speed); a.y = wrapY(a.y + Math.sin(a.hd) * a.speed);
+    return true;
+  }
+
+  function mutateG(g, scale) {
+    const m = pheno(9, g[9]) * P.mutMult * (scale || 1);
+    const out = new Float32Array(NG);
+    for (let i = 0; i < NG; i++) {
+      let v = g[i] + gauss() * m;
+      if (i === HUE) { v = ((v % 1) + 1) % 1; } else v = Math.min(1, Math.max(0, v));
+      out[i] = v;
+    }
+    return out;
+  }
+  function cross(a, b) {
+    const out = new Float32Array(NG);
+    const blend = R() * 100 < P.crossover * 100;
+    for (let i = 0; i < NG; i++) {
+      if (i === HUE) { out[i] = R() < 0.5 ? a[i] : b[i]; continue; }
+      if (blend) { const d = R(); out[i] = a[i] + d * (b[i] - a[i]); } // 1999 blend operator
+      else out[i] = R() < 0.5 ? a[i] : b[i];
+    }
+    return out;
+  }
+
+  const stats = { births: 0, deathStarve: { prey: 0, pred: 0 }, deathAge: { prey: 0, pred: 0 }, eaten: 0, immigrants: 0 };
+  const hist = [];
+
+  function step() {
+    // grass growth
+    const rt = Math.max(0, P.growth * (1 + P.season * Math.sin(2 * Math.PI * t / Math.max(10, P.seasonLen))));
+    for (let k = 0; k < N; k++) {
+      const Kc = P.K * fert[k]; if (Kc <= 0) { G[k] = 0; continue; }
+      G[k] = Math.min(Kc, G[k] + rt * (Kc - G[k]));
+    }
+    // scent deposit + diffuse + decay
+    for (const a of agents.prey) Sy[cellOf(a.x, a.y)] += a.size;
+    for (const a of agents.pred) Sd[cellOf(a.x, a.y)] += a.size;
+    for (const S of [Sy, Sd]) {
+      const D = P.scentDiff, keep = 1 - P.scentDecay;
+      for (let y = 0; y < H; y++) {
+        const ym = ((y - 1 + H) % H) * W, yp = ((y + 1) % H) * W, y0 = y * W;
+        for (let x = 0; x < W; x++) {
+          const xm = (x - 1 + W) % W, xp = (x + 1) % W;
+          tmp[y0 + x] = keep * ((1 - D) * S[y0 + x] + D * 0.25 * (S[y0 + xm] + S[y0 + xp] + S[ym + x] + S[yp + x]));
+        }
+      }
+      S.set(tmp);
+    }
+
+    // prey: move, pay, graze, age
+    const prey = agents.prey;
+    shuffle(prey);
+    for (const a of prey) {
+      const moved = decideMove(a);
+      a.E -= a.cost + (moved ? a.mcost : 0);
+      const k = cellOf(a.x, a.y), take = Math.min(G[k], P.preyBite * a.size);
+      G[k] -= take; a.E = Math.min(a.Emax, a.E + take * P.preyEff);
+      a.age++;
+    }
+    // predators: move, pay, hunt
+    const hy = buildHash(prey);
+    const pred = agents.pred; shuffle(pred);
+    for (const a of pred) {
+      const moved = decideMove(a);
+      a.E -= a.cost + (moved ? a.mcost : 0);
+      a.age++;
+      if (a.handle > 0) { a.handle--; continue; }
+      if (a.E > P.satiety * a.Emax) continue;
+      let tgt = null, bd = 1e9; const r = 0.6 + 0.3 * a.size;
+      near(hy, a.x, a.y, r, (q, d2) => { if (d2 < bd) { bd = d2; tgt = q; } });
+      if (tgt) {
+        const sp = (a.speed - tgt.speed) / (a.speed + tgt.speed), sz = (a.size - tgt.size) / (a.size + tgt.size);
+        const crowd = Math.max(0, Sd[cellOf(a.x, a.y)] - a.size * 0.5);
+        const p = P.catchP * Math.min(1, Math.max(0.05, 0.6 + sp + 0.5 * sz)) / (1 + P.interference * crowd);
+        if (R() < p) {
+          tgt.dead = true; tgt.died = t; tgt.cause = 'eaten'; tgt.killer = a.id; stats.eaten++;
+          a.E = Math.min(a.Emax, a.E + P.predEff * (P.bodyValue * tgt.size + 0.25 * Math.max(0, tgt.E)));
+          a.kills++; a.handle = P.handling;
+        }
+      }
+    }
+
+    // deaths
+    for (const sp of ['prey', 'pred']) for (const a of agents[sp]) {
+      if (a.dead) continue;
+      if (a.E <= 0) { a.dead = true; a.died = t; a.cause = 'starved'; stats.deathStarve[sp]++; }
+      else if (a.age > a.life) { a.dead = true; a.died = t; a.cause = 'age'; stats.deathAge[sp]++; }
+    }
+    agents.prey = agents.prey.filter(a => !a.dead);
+    agents.pred = agents.pred.filter(a => !a.dead);
+
+    // reproduction
+    const total = agents.prey.length + agents.pred.length;
+    let room = Math.max(0, P.maxAgents - total);
+    const births = [];
+    for (const sp of ['prey', 'pred']) {
+      const list = agents[sp];
+      const h = P.sexual ? buildHash(list) : null;
+      for (const a of list) {
+        if (room <= 0) break;
+        if (a.age < 12 || a.E < a.mat * a.Emax || a.mated === t) continue;
+        if (!P.sexual) {
+          const cE = a.inv * a.E; a.E -= cE + P.birthCost * a.size;
+          births.push([sp, mutateG(a.g), a.x, a.y, cE, a.gen + 1, a.id]); a.kids++; room--;
+        } else {
+          let mate = null;
+          near(h, a.x, a.y, 2.0, (b) => { if (!mate && b !== a && b.mated !== t && b.age >= 12 && b.E >= 0.5 * b.mat * b.Emax) mate = b; });
+          if (!mate) continue;
+          const cA = a.inv * a.E * 0.5, cB = mate.inv * mate.E * 0.5;
+          a.E -= cA + P.birthCost * a.size * 0.5; mate.E -= cB + P.birthCost * mate.size * 0.5;
+          a.mated = t; mate.mated = t;
+          births.push([sp, mutateG(cross(a.g, mate.g)), a.x, a.y, cA + cB, Math.max(a.gen, mate.gen) + 1, a.id]);
+          a.kids++; mate.kids++; room--;
+        }
+      }
+    }
+    for (const b of births) spawn(b[0], b[1], wrapX(b[2] + (R() - 0.5)), wrapY(b[3] + (R() - 0.5)), b[4], b[5], b[6]);
+    stats.births += births.length;
+
+    // immigration (per 1000 steps, each species)
+    for (const sp of ['prey', 'pred']) if (R() < P.immig / 1000) { seedPop(sp, 1); stats.immigrants++; }
+
+    t++;
+    record();
+  }
+
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const x = a[i]; a[i] = a[j]; a[j] = x; } }
+
+  let Ksum = 0; for (let k = 0; k < N; k++) Ksum += P.K * fert[k];
+  function record() {
+    let gs = 0; for (let k = 0; k < N; k++) gs += G[k];
+    const row = { t, prey: agents.prey.length, pred: agents.pred.length, grass: Ksum > 0 ? gs / Ksum : 0, m: {}, s: {}, hueH: {}, gen: {} };
+    for (const sp of ['prey', 'pred']) {
+      const L = agents[sp], m = new Float32Array(NG), s = new Float32Array(NG), hh = new Uint16Array(HB);
+      let gen = 0;
+      for (const a of L) { for (let i = 0; i < NG; i++) m[i] += a.g[i]; hh[Math.min(HB - 1, Math.floor(a.g[HUE] * HB))]++; gen += a.gen; }
+      if (L.length) { for (let i = 0; i < NG; i++) m[i] /= L.length; for (const a of L) for (let i = 0; i < NG; i++) { const d = a.g[i] - m[i]; s[i] += d * d; } for (let i = 0; i < NG; i++) s[i] = Math.sqrt(s[i] / L.length); }
+      row.m[sp] = L.length ? m : null; row.s[sp] = L.length ? s : null; row.hueH[sp] = hh; row.gen[sp] = L.length ? gen / L.length : 0;
+    }
+    hist.push(row);
+    if (hist.length > 12000) hist.splice(0, 2000);
+  }
+  record();
+
+  function inject(sp, n) { seedPop(sp, n); }
+  function setParam(k, v) {
+    P[k] = v;
+    if (['preyBasal', 'predBasal', 'senseCost', 'moveCost'].includes(k)) { for (const a of agents.prey) express(a); for (const a of agents.pred) express(a); }
+    if (k === 'K' || k === 'patchiness' || k === 'patchScale') {
+      if (k !== 'K') buildFertility();
+      Ksum = 0; for (let q = 0; q < N; q++) { Ksum += P.K * fert[q]; G[q] = Math.min(G[q], P.K * fert[q]); }
+    }
+  }
+  function findNear(x, y, r) {
+    let best = null, bd = r * r;
+    for (const sp of ['pred', 'prey']) for (const a of agents[sp]) {
+      let dx = a.x - x, dy = a.y - y;
+      if (dx > W / 2) dx -= W; else if (dx < -W / 2) dx += W; if (dy > H / 2) dy -= H; else if (dy < -H / 2) dy += H;
+      const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = a; }
+    }
+    return best;
+  }
+
+  return { P, W, H, G, Sy, Sd, fert, agents, hist, stats, step, inject, setParam, findNear, get t() { return t; } };
+}
+
+
+
+
+// ================= UI =================
+const PRESETS = {
+  balanced: { label: 'Balanced coexistence', note: 'Tuned so prey and predators persist with noisy fluctuations.', p: {} },
+  boom: { label: 'Boom and bust', note: 'Richer grass and keener predators give big cycles: the paradox of enrichment. Immigration rescues extinct species.', p: { growth: 0.02, interference: 1.5, predEff: 0.4, immig: 3 } },
+  seasons: { label: 'Seasons', note: 'Grass growth swings ±35% over a 400-step year.', p: { season: 0.35, seasonLen: 400 } },
+  patchy: { label: 'Patchy landscape', note: 'Fertile islands separated by barren ground.', p: { patchiness: 1, patchScale: 24 } },
+  sexual: { label: 'Sexual reproduction', note: 'Parents must find a mate nearby; children blend both genomes.', p: { sexual: true } },
+  random: { label: 'Random genomes (1999 style)', note: 'Every gene starts uniformly random, as initPop did in 1999. Watch selection sort them out.', p: { randomStart: true, nPrey: 600, nPred: 60 } },
+};
+// [key, label, min, max, step, when('live'|'reset'), fmt]
+const CONTROLS = [
+  { g: 'Landscape', open: true, items: [
+    ['growth', 'Grass regrowth rate', 0.002, 0.04, 0.001, 'live', 3],
+    ['K', 'Grass capacity per cell', 5, 40, 1, 'live', 0],
+    ['season', 'Seasonal swing', 0, 0.9, 0.05, 'live', 2],
+    ['seasonLen', 'Year length (steps)', 100, 2000, 50, 'live', 0],
+    ['patchiness', 'Patchiness', 0, 1, 0.05, 'live', 2],
+    ['patchScale', 'Patch size', 4, 40, 1, 'live', 0],
+    ['W', 'Width (cells)', 40, 200, 4, 'reset', 0],
+    ['H', 'Height (cells)', 30, 140, 2, 'reset', 0],
+  ] },
+  { g: 'Prey', items: [
+    ['nPrey', 'Starting prey', 0, 2000, 10, 'reset', 0],
+    ['preyBite', 'Bite per step', 0.3, 4, 0.1, 'live', 1],
+    ['preyEff', 'Grazing efficiency', 0.1, 1, 0.05, 'live', 2],
+    ['preyBasal', 'Upkeep per step', 0.05, 1, 0.05, 'live', 2],
+    ['preyLife', 'Lifespan (steps)', 50, 1500, 25, 'live', 0],
+  ] },
+  { g: 'Predators', items: [
+    ['nPred', 'Starting predators', 0, 400, 5, 'reset', 0],
+    ['predEff', 'Digestion efficiency', 0.05, 1, 0.01, 'live', 2],
+    ['catchP', 'Base catch chance', 0.05, 1, 0.01, 'live', 2],
+    ['handling', 'Digesting time (steps)', 0, 60, 1, 'live', 0],
+    ['interference', 'Crowding interference', 0, 8, 0.1, 'live', 1],
+    ['satiety', 'Stops hunting above', 0.2, 1, 0.05, 'live', 2],
+    ['predBasal', 'Upkeep per step', 0.05, 1, 0.05, 'live', 2],
+    ['bodyValue', 'Prey body value', 10, 120, 5, 'live', 0],
+    ['predLife', 'Lifespan (steps)', 50, 2000, 25, 'live', 0],
+  ] },
+  { g: 'Evolution', items: [
+    ['sexual', 'Sexual reproduction', null, null, null, 'live'],
+    ['crossover', 'Blend crossover chance', 0, 1, 0.05, 'live', 2],
+    ['mutMult', 'Mutation multiplier', 0, 5, 0.1, 'live', 1],
+    ['birthCost', 'Birth cost (× size)', 0, 20, 0.5, 'live', 1],
+    ['immig', 'Immigrants per 1,000 steps', 0, 20, 1, 'live', 0],
+    ['diversity', 'Starting diversity', 0, 1, 0.05, 'reset', 2],
+    ['randomStart', 'Fully random starting genomes', null, null, null, 'reset'],
+  ] },
+  { g: 'Behaviour & costs', items: [
+    ['moveCost', 'Movement cost', 0, 1.5, 0.05, 'live', 2],
+    ['senseCost', 'Sensing cost per cell', 0, 0.2, 0.01, 'live', 2],
+    ['inertia', 'Heading persistence', 0, 1, 0.05, 'live', 2],
+    ['scentDiff', 'Scent spread', 0, 1, 0.05, 'live', 2],
+    ['scentDecay', 'Scent fade', 0.02, 0.6, 0.01, 'live', 2],
+  ] },
+];
+const TRAITS = GENES.map((g, i) => i).filter(i => !GENES[i].neutral);
+
+const $ = id => document.getElementById(id);
+const P = Object.assign({}, DEFAULTS);
+let world, running = true, acc = 0, last = performance.now(), selected = null, chartDirty = true, lastChart = 0;
+let C = {};
+function readColours() {
+  const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
+  C = { ink: v('--ink'), muted: v('--muted'), line: v('--line'), soft: v('--soft'), panel: v('--panel'), prey: v('--prey'), pred: v('--pred'), accent: v('--accent'), soil: v('--soil'), grass: v('--grass'), screen: v('--screen'), mono: v('--f-mono'), body: v('--f-body') };
+  C.soilRGB = hexRGB(C.soil); C.grassRGB = hexRGB(C.grass); C.preyRGB = hexRGB(C.prey); C.predRGB = hexRGB(C.pred);
+}
+function hexRGB(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+const fmt = (v, d) => (+v).toFixed(d);
+
+// ---------- build controls ----------
+const presetSel = $('preset');
+for (const [k, v] of Object.entries(PRESETS)) { const o = document.createElement('option'); o.value = k; o.textContent = v.label; presetSel.appendChild(o); }
+const paramsEl = $('params');
+CONTROLS.forEach(grp => {
+  const d = document.createElement('details'); if (grp.open) d.open = true;
+  d.innerHTML = `<summary>${grp.g}</summary>`;
+  for (const [k, label, mn, mx, st, when, dp] of grp.items) {
+    const row = document.createElement('div');
+    if (mn === null) {
+      row.className = 'ctl sw';
+      row.innerHTML = `<label for="p_${k}"><input type="checkbox" id="p_${k}"> ${label}</label><span></span><span class="when">${when === 'live' ? 'applies live' : 'applies on reset'}</span>`;
+      d.appendChild(row);
+      row.querySelector('input').addEventListener('change', e => setP(k, e.target.checked, when));
+    } else {
+      row.className = 'ctl';
+      row.innerHTML = `<label for="p_${k}">${label}</label><output id="o_${k}"></output><input type="range" id="p_${k}" min="${mn}" max="${mx}" step="${st}"><span class="when">${when === 'live' ? 'applies live' : 'applies on reset'}</span>`;
+      d.appendChild(row);
+      const inp = row.querySelector('input');
+      inp.addEventListener('input', () => { $('o_' + k).textContent = fmt(inp.value, dp); setP(k, +inp.value, when); });
+    }
+  }
+  paramsEl.appendChild(d);
+});
+function setP(k, v, when) { P[k] = v; if (when === 'live' && world) world.setParam(k, v); }
+function syncControls() {
+  for (const grp of CONTROLS) for (const [k, , mn, , , , dp] of grp.items) {
+    const el = $('p_' + k); if (!el) continue;
+    if (mn === null) el.checked = !!P[k]; else { el.value = P[k]; $('o_' + k).textContent = fmt(P[k], dp); }
+  }
+}
+function applyPreset(key) {
+  Object.assign(P, DEFAULTS, PRESETS[key].p, { seed: +$('seed').value || 1 });
+  $('presetNote').textContent = PRESETS[key].note;
+  syncControls();
+}
+
+// trait selects
+for (const id of ['colourTrait', 'scX', 'scY']) for (const i of TRAITS) { const o = document.createElement('option'); o.value = i; o.textContent = GENES[i].name; $(id).appendChild(o); }
+$('scX').value = 1; $('scY').value = 5; $('colourTrait').value = 0;
+
+// ---------- lifecycle ----------
+function reset() {
+  P.seed = +$('seed').value || 1;
+  world = makeWorld(P);
+  selected = null; acc = 0;
+  sizeWorld(); renderInspector(); drawAll(true);
+}
+presetSel.onchange = e => { applyPreset(e.target.value); reset(); };
+$('reset').onclick = reset;
+$('reseed').onclick = () => { $('seed').value = 1 + Math.floor(Math.random() * 999998); reset(); };
+$('play').onclick = toggle;
+function toggle() { running = !running; $('play').textContent = running ? 'Pause' : 'Play'; }
+$('stepBtn').onclick = () => { if (running) toggle(); world.step(); drawAll(true); };
+$('skip').onclick = () => {
+  const btn = $('skip'); btn.disabled = true; btn.textContent = 'Skipping…';
+  let n = 0;
+  const chunk = () => { const t0 = performance.now(); while (n < 500 && performance.now() - t0 < 40) { world.step(); n++; } drawAll(true); if (n < 500) setTimeout(chunk, 0); else { btn.disabled = false; btn.textContent = 'Skip 500'; } };
+  chunk();
+};
+$('addPrey').onclick = () => { world.inject('prey', 25); drawAll(true); };
+$('addPred').onclick = () => { world.inject('pred', 10); drawAll(true); };
+$('speed').oninput = e => { $('speedOut').textContent = e.target.value + '/s'; };
+for (const id of ['colourBy', 'colourTrait', 'layer']) $(id).onchange = () => { $('colourTrait').hidden = $('colourBy').value !== 'trait'; drawWorld(); };
+for (const id of ['scSp', 'scX', 'scY', 'lrSp', 'win']) $(id).onchange = () => drawAll(true);
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input,select,textarea,summary')) return;
+  if (e.key === ' ' && e.target.tagName === 'BUTTON') return;
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); if (running) toggle(); world.step(); drawAll(true); }
+  else if (e.key === 'r' || e.key === 'R') reset();
+});
+
+function loop(now) {
+  const dt = Math.min(250, now - last); last = now;
+  if (running) {
+    acc += dt * (+$('speed').value) / 1000;
+    const t0 = performance.now(); let n = 0;
+    while (acc >= 1 && performance.now() - t0 < 14) { world.step(); acc -= 1; n++; }
+    if (acc > 5) acc = 5;
+    if (n) { drawWorld(); chartDirty = true; }
+  } else if (selected) drawWorld();
+  if (chartDirty && now - lastChart > 120) { drawCharts(); lastChart = now; chartDirty = false; }
+  requestAnimationFrame(loop);
+}
+
+// ---------- world view ----------
+const wc = $('world'), wctx = wc.getContext('2d');
+const field = document.createElement('canvas'), fctx = field.getContext('2d');
+let scale = 6, fieldImg;
+function sizeWorld() {
+  const w = wc.parentElement.clientWidth - 16;
+  scale = w / world.W;
+  const dpr = window.devicePixelRatio || 1;
+  wc.width = Math.round(w * dpr); wc.height = Math.round(world.H * scale * dpr);
+  wc.style.height = (world.H * scale) + 'px';
+  wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  field.width = world.W; field.height = world.H; fieldImg = fctx.createImageData(world.W, world.H);
+}
+function lineageColour(h, a) { return `hsla(${Math.round(h * 360)},70%,58%,${a})`; }
+function ramp(t) { // perceptual-ish: deep blue → teal → yellow
+  t = Math.max(0, Math.min(1, t));
+  const s = [[40, 60, 140], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
+  const x = t * 3, i = Math.min(2, Math.floor(x)), f = x - i, a = s[i], b = s[i + 1];
+  return `rgb(${a[0] + (b[0] - a[0]) * f | 0},${a[1] + (b[1] - a[1]) * f | 0},${a[2] + (b[2] - a[2]) * f | 0})`;
+}
+function drawWorld() {
+  const W = world.W, H = world.H, d = fieldImg.data, layer = $('layer').value;
+  const s = C.soilRGB, g = C.grassRGB, py = C.preyRGB, pd = C.predRGB;
+  for (let k = 0; k < W * H; k++) {
+    let r = s[0], gg = s[1], b = s[2], t = 0;
+    if (layer === 'grass') { t = Math.sqrt(Math.max(0, world.G[k]) / world.P.K); r = s[0] + (g[0] - s[0]) * t; gg = s[1] + (g[1] - s[1]) * t; b = s[2] + (g[2] - s[2]) * t; }
+    else if (layer === 'fert') { t = Math.min(1, world.fert[k] / 2); r = s[0] + (g[0] - s[0]) * t * .8; gg = s[1] + (g[1] - s[1]) * t * .8; b = s[2] + (g[2] - s[2]) * t * .8; }
+    else if (layer === 'sy') { t = Math.tanh(world.Sy[k] / 1.5); r = s[0] + (py[0] - s[0]) * t; gg = s[1] + (py[1] - s[1]) * t; b = s[2] + (py[2] - s[2]) * t; }
+    else if (layer === 'sd') { t = Math.tanh(world.Sd[k] / 1.5); r = s[0] + (pd[0] - s[0]) * t; gg = s[1] + (pd[1] - s[1]) * t; b = s[2] + (pd[2] - s[2]) * t; }
+    const o = k * 4; d[o] = r; d[o + 1] = gg; d[o + 2] = b; d[o + 3] = 255;
+  }
+  fctx.putImageData(fieldImg, 0, 0);
+  wctx.imageSmoothingEnabled = true;
+  wctx.drawImage(field, 0, 0, W * scale, H * scale);
+
+  const mode = $('colourBy').value, ti = +$('colourTrait').value;
+  const colourOf = a => {
+    if (mode === 'lineage') return lineageColour(a.g[10], 1);
+    if (mode === 'energy') return ramp(a.E / a.Emax);
+    if (mode === 'trait') return ramp(a.g[ti]);
+    return a.sp === 'prey' ? C.prey : C.pred;
+  };
+  const sc = scale;
+  // prey: circles
+  for (const a of world.agents.prey) {
+    wctx.fillStyle = colourOf(a);
+    wctx.beginPath(); wctx.arc(a.x * sc, a.y * sc, Math.max(1.4, 0.32 * a.size * sc), 0, 6.283); wctx.fill();
+  }
+  // predators: arrowheads pointing along heading, with a dark outline for contrast
+  wctx.lineWidth = 1.2; wctx.strokeStyle = 'rgba(255,255,255,.85)';
+  for (const a of world.agents.pred) {
+    const L = Math.max(4.5, 0.7 * a.size * sc), c = Math.cos(a.hd), s2 = Math.sin(a.hd), x = a.x * sc, y = a.y * sc;
+    wctx.fillStyle = colourOf(a);
+    wctx.beginPath(); wctx.moveTo(x + c * L, y + s2 * L); wctx.lineTo(x - c * L * .6 - s2 * L * .55, y - s2 * L * .6 + c * L * .55); wctx.lineTo(x - c * L * .3, y - s2 * L * .3); wctx.lineTo(x - c * L * .6 + s2 * L * .55, y - s2 * L * .6 - c * L * .55); wctx.closePath(); wctx.fill(); wctx.stroke();
+  }
+  if (selected && !selected.dead) {
+    const x = selected.x * sc, y = selected.y * sc;
+    wctx.strokeStyle = '#ffffff'; wctx.lineWidth = 2; wctx.beginPath(); wctx.arc(x, y, Math.max(6, 0.9 * selected.size * sc), 0, 6.283); wctx.stroke();
+    wctx.setLineDash([4, 4]); wctx.lineWidth = 1; wctx.strokeStyle = 'rgba(255,255,255,.6)';
+    wctx.beginPath(); wctx.arc(x, y, selected.sense * sc, 0, 6.283); wctx.stroke(); wctx.setLineDash([]);
+  }
+}
+wc.addEventListener('click', e => {
+  const r = wc.getBoundingClientRect();
+  const a = world.findNear((e.clientX - r.left) / scale, (e.clientY - r.top) / scale, Math.max(1.5, 14 / scale));
+  selected = a; renderInspector(); drawWorld();
+});
+
+// ---------- charts ----------
+function prep(cv) {
+  if (!cv.dataset.h) cv.dataset.h = cv.getAttribute('height');
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.dataset.h;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px'; }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function niceMax(v) { if (v <= 10) return 10; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p; return v; }
+function windowed() {
+  const n = +$('win').value, h = world.hist, all = h.length > n ? h.slice(-n) : h;
+  const stride = Math.max(1, Math.ceil(all.length / 900));
+  if (stride === 1) return all;
+  const out = []; for (let i = 0; i < all.length; i += stride) out.push(all[i]); if (out[out.length - 1] !== all[all.length - 1]) out.push(all[all.length - 1]);
+  return out;
+}
+function axesText(ctx) { ctx.font = `11px ${C.mono}`; ctx.fillStyle = C.muted; }
+function drawCensus(data) {
+  const { ctx, w, h } = prep($('census'));
+  const L = 46, R = 40, T = 10, B = 24, pw = w - L - R, ph = h - T - B;
+  let mx = 0; for (const d of data) mx = Math.max(mx, d.prey, d.pred); mx = niceMax(mx);
+  const t0 = data[0].t, t1 = Math.max(t0 + 1, data[data.length - 1].t, t0 + 60);
+  const xs = t => L + pw * (t - t0) / (t1 - t0), ys = v => T + ph - ph * v / mx;
+  // grass area on right axis 0..100%
+  ctx.beginPath(); ctx.moveTo(xs(data[0].t), T + ph);
+  for (const d of data) ctx.lineTo(xs(d.t), T + ph - ph * d.grass);
+  ctx.lineTo(xs(data[data.length - 1].t), T + ph); ctx.closePath();
+  ctx.fillStyle = C.grass; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
+  axesText(ctx); ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = Math.round(T + ph - ph * i / 4) + .5;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(Math.round(mx * i / 4), L - 6, y);
+    ctx.textAlign = 'left'; ctx.fillStyle = C.grass; ctx.fillText(i * 25 + '%', L + pw + 6, y); ctx.fillStyle = C.muted;
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let i = 0; i <= 4; i++) { const tt = Math.round(t0 + (t1 - t0) * i / 4); ctx.fillText(tt, Math.min(L + pw - 14, Math.max(L + 14, xs(tt))), T + ph + 6); }
+  for (const [k, c] of [['prey', C.prey], ['pred', C.pred]]) {
+    ctx.beginPath(); data.forEach((d, i) => { const x = xs(d.t), y = ys(d[k]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+    const d = data[data.length - 1]; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(xs(d.t), ys(d[k]), 3.5, 0, 6.283); ctx.fill();
+  }
+}
+function drawPhase(data) {
+  const { ctx, w, h } = prep($('phase'));
+  const L = 46, R = 12, T = 10, B = 36, pw = w - L - R, ph = h - T - B;
+  let mx = 0, my = 0; for (const d of data) { mx = Math.max(mx, d.prey); my = Math.max(my, d.pred); }
+  mx = niceMax(mx); my = niceMax(my);
+  const xs = v => L + pw * v / mx, ys = v => T + ph - ph * v / my;
+  axesText(ctx); ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = Math.round(ys(my * i / 4)) + .5, x = Math.round(xs(mx * i / 4)) + .5;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(Math.round(my * i / 4), L - 6, y);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(Math.round(mx * i / 4), Math.min(L + pw - 12, x), T + ph + 5);
+  }
+  ctx.fillStyle = C.prey; ctx.fillText('prey →', L + pw / 2, T + ph + 20);
+  ctx.save(); ctx.translate(11, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.fillStyle = C.pred; ctx.textBaseline = 'middle'; ctx.fillText('predators →', 0, 0); ctx.restore();
+  const n = data.length; ctx.strokeStyle = C.accent; ctx.lineWidth = 1.7; ctx.lineJoin = 'round';
+  for (let i = 1; i < n; i++) { ctx.globalAlpha = 0.07 + 0.93 * i / (n - 1); ctx.beginPath(); ctx.moveTo(xs(data[i - 1].prey), ys(data[i - 1].pred)); ctx.lineTo(xs(data[i].prey), ys(data[i].pred)); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  const d = data[n - 1]; ctx.fillStyle = C.accent; ctx.beginPath(); ctx.arc(xs(d.prey), ys(d.pred), 5, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = C.panel; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.textBaseline = 'bottom'; const right = xs(d.prey) > L + pw - 100; ctx.textAlign = right ? 'right' : 'left';
+  ctx.fillText(`${d.prey}, ${d.pred}`, xs(d.prey) + (right ? -8 : 8), ys(d.pred) - 4);
+}
+// trait small multiples
+const traitEls = {};
+for (const i of TRAITS) {
+  const div = document.createElement('div'); div.className = 'trait';
+  div.innerHTML = `<div class="tn"><b>${GENES[i].name}</b><span class="tv" id="tv${i}"></span></div><canvas class="chart" height="78" id="tc${i}"></canvas>`;
+  $('traits').appendChild(div); traitEls[i] = div;
+}
+function drawTraits(data) {
+  for (const i of TRAITS) {
+    const { ctx, w, h } = prep($('tc' + i));
+    const T = 4, B = 4, L = 2, R = 2, ph = h - T - B, pw = w - L - R;
+    const t0 = data[0].t, t1 = Math.max(t0 + 60, data[data.length - 1].t);
+    const xs = t => L + pw * (t - t0) / (t1 - t0), ys = gv => T + ph - ph * gv;
+    ctx.strokeStyle = C.soft; ctx.lineWidth = 1;
+    for (const q of [0, .5, 1]) { const y = Math.round(ys(q)) + .5; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); }
+    if (GENES[i].lo < 0 && GENES[i].hi > 0) { const z = toGeneUI(i, 0), y = Math.round(ys(z)) + .5; ctx.strokeStyle = C.line; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); ctx.setLineDash([]); }
+    const lab = [];
+    for (const [sp, c] of [['prey', C.prey], ['pred', C.pred]]) {
+      const pts = data.filter(d => d.m[sp]);
+      if (!pts.length) { lab.push('–'); continue; }
+      // band
+      ctx.beginPath();
+      pts.forEach((d, k) => { const y = ys(Math.min(1, d.m[sp][i] + d.s[sp][i])); k ? ctx.lineTo(xs(d.t), y) : ctx.moveTo(xs(d.t), y); });
+      for (let k = pts.length - 1; k >= 0; k--) { const d = pts[k]; ctx.lineTo(xs(d.t), ys(Math.max(0, d.m[sp][i] - d.s[sp][i]))); }
+      ctx.closePath(); ctx.fillStyle = c; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.beginPath(); pts.forEach((d, k) => { const y = ys(d.m[sp][i]); k ? ctx.lineTo(xs(d.t), y) : ctx.moveTo(xs(d.t), y); });
+      ctx.strokeStyle = c; ctx.lineWidth = 1.8; ctx.stroke();
+      const last = pts[pts.length - 1]; lab.push(fmt(pheno(i, last.m[sp][i]), GENES[i].fmt));
+    }
+    $('tv' + i).innerHTML = `<span style="color:${C.prey}">${lab[0]}</span> · <span style="color:${C.pred}">${lab[1]}</span> <span title="range">[${GENES[i].lo}–${GENES[i].hi}]</span>`;
+  }
+}
+function toGeneUI(i, v) { const d = GENES[i]; return d.log ? Math.log(v / d.lo) / Math.log(d.hi / d.lo) : (v - d.lo) / (d.hi - d.lo); }
+function drawScatter() {
+  const { ctx, w, h } = prep($('scatter'));
+  const sp = $('scSp').value, gx = +$('scX').value, gy = +$('scY').value;
+  const L = 50, R = 12, T = 10, B = 40, pw = w - L - R, ph = h - T - B;
+  const xs = v => L + pw * v, ys = v => T + ph - ph * v;
+  axesText(ctx); ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const q = i / 4, x = Math.round(xs(q)) + .5, y = Math.round(ys(q)) + .5;
+    ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(fmt(pheno(gx, q), GENES[gx].fmt), Math.min(L + pw - 14, x), T + ph + 5);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(fmt(pheno(gy, q), GENES[gy].fmt), L - 6, y);
+  }
+  ctx.fillStyle = C.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(GENES[gx].name + ' →', L + pw / 2, T + ph + 22);
+  ctx.save(); ctx.translate(11, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle'; ctx.fillText(GENES[gy].name + ' →', 0, 0); ctx.restore();
+  const list = world.agents[sp];
+  if (!list.length) { ctx.fillStyle = C.muted; ctx.font = `13px ${C.body}`; ctx.fillText(sp === 'prey' ? 'Prey are extinct' : 'Predators are extinct', L + pw / 2, T + ph / 2); return; }
+  const stride = Math.max(1, Math.ceil(list.length / 2500));
+  for (let k = 0; k < list.length; k += stride) { const a = list[k]; ctx.fillStyle = lineageColour(a.g[10], 0.65); ctx.beginPath(); ctx.arc(xs(a.g[gx]), ys(a.g[gy]), 2.4, 0, 6.283); ctx.fill(); }
+  let mx = 0, my = 0; for (const a of list) { mx += a.g[gx]; my += a.g[gy]; } mx /= list.length; my /= list.length;
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(xs(mx), ys(my), 7, 0, 6.283); ctx.stroke();
+  if (selected && !selected.dead && selected.sp === sp) { ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(xs(selected.g[gx]), ys(selected.g[gy]), 5, 0, 6.283); ctx.stroke(); }
+  ctx.font = `11px ${C.mono}`; ctx.fillStyle = C.ink; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+  ctx.fillText(`n=${list.length}  mean ${fmt(pheno(gx, mx), GENES[gx].fmt)}, ${fmt(pheno(gy, my), GENES[gy].fmt)}`, L + pw - 4, T + 4);
+}
+function drawRiver(data) {
+  const { ctx, w, h } = prep($('river'));
+  const sp = $('lrSp').value, L = 34, R = 8, T = 8, B = 24, pw = w - L - R, ph = h - T - B, nb = HB;
+  const t0 = data[0].t, t1 = Math.max(t0 + 60, data[data.length - 1].t);
+  const xs = t => L + pw * (t - t0) / (t1 - t0);
+  ctx.fillStyle = C.screen; ctx.fillRect(L, T, pw, ph);
+  const bw = Math.max(1, pw / Math.max(1, data.length - 1) + 0.6), bh = ph / nb;
+  for (let k = 0; k < data.length; k++) {
+    const d = data[k], hh = d.hueH[sp], tot = sp === 'prey' ? d.prey : d.pred; if (!tot) continue;
+    const x = xs(d.t); let mxb = 1; for (let b = 0; b < nb; b++) if (hh[b] > mxb) mxb = hh[b];
+    for (let b = 0; b < nb; b++) { if (!hh[b]) continue; const f = hh[b] / mxb; ctx.fillStyle = lineageColour((b + .5) / nb, 0.08 + 0.92 * f * f); ctx.fillRect(x, T + ph - (b + 1) * bh, bw, bh + .5); }
+  }
+  axesText(ctx); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let i = 0; i <= 4; i++) { const tt = Math.round(t0 + (t1 - t0) * i / 4); ctx.fillText(tt, Math.min(L + pw - 14, Math.max(L + 14, xs(tt))), T + ph + 6); }
+  ctx.save(); ctx.translate(10, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle'; ctx.fillText('lineage marker', 0, 0); ctx.restore();
+}
+function drawChips() {
+  const d = world.hist[world.hist.length - 1];
+  $('chips').innerHTML =
+    `<span class="chip ${d.prey ? '' : 'out'}"><i class="dot"></i>${d.prey} prey</span>` +
+    `<span class="chip ${d.pred ? '' : 'out'}"><i class="tri"></i>${d.pred} predators</span>` +
+    `<span class="chip"><i class="sq"></i>grass ${Math.round(d.grass * 100)}%</span>`;
+  $('tOut').textContent = d.t;
+  $('genOut').textContent = `${d.gen.prey.toFixed(1)} / ${d.gen.pred.toFixed(1)}`;
+  const s = world.stats;
+  $('log').innerHTML = `<table>
+    <tr><td>Births</td><td class="v">${s.births.toLocaleString()}</td></tr>
+    <tr><td>Prey eaten</td><td class="v">${s.eaten.toLocaleString()}</td></tr>
+    <tr><td>Starved: prey · predators</td><td class="v">${s.deathStarve.prey.toLocaleString()} · ${s.deathStarve.pred.toLocaleString()}</td></tr>
+    <tr><td>Old age: prey · predators</td><td class="v">${s.deathAge.prey.toLocaleString()} · ${s.deathAge.pred.toLocaleString()}</td></tr>
+    <tr><td>Immigrants</td><td class="v">${s.immigrants}</td></tr>
+    <tr><td>Mean generation: prey · predators</td><td class="v">${d.gen.prey.toFixed(1)} · ${d.gen.pred.toFixed(1)}</td></tr></table>`;
+}
+function drawCharts() {
+  const data = windowed();
+  drawCensus(data); drawPhase(data); drawTraits(data); drawScatter(); drawRiver(data); drawChips();
+  if (selected) renderInspector();
+}
+function drawAll() { drawWorld(); drawCharts(); }
+
+// ---------- inspector ----------
+function renderInspector() {
+  const el = $('insp');
+  if (!selected) { el.innerHTML = '<div class="empty">Nobody selected yet.</div>'; return; }
+  const a = selected, name = a.sp === 'prey' ? 'Prey' : 'Predator';
+  const icon = a.sp === 'prey' ? '<i class="dot"></i>' : '<i class="tri"></i>';
+  const status = a.dead ? `<b>Died at step ${a.died}</b> (${a.cause === 'eaten' ? 'eaten by #' + a.killer : a.cause === 'age' ? 'old age' : 'starved'})` : `alive · following`;
+  let rows = '';
+  for (const i of TRAITS) rows += `<tr><td>${GENES[i].name}</td><td class="v">${fmt(pheno(i, a.g[i]), GENES[i].fmt)}</td><td style="width:35%"><div class="bar"><i style="width:${(a.g[i] * 100).toFixed(0)}%"></i></div></td></tr>`;
+  el.innerHTML = `<div class="who">${icon}<b>${name} #${a.id}</b><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${lineageColour(a.g[10], 1)}" title="lineage marker"></span><span style="color:var(--muted)">${status}</span></div>
+    <table>
+      <tr><td>Energy</td><td class="v">${Math.max(0, a.E).toFixed(0)} / ${a.Emax.toFixed(0)}</td><td style="width:35%"><div class="bar"><i style="width:${Math.max(0, Math.min(100, a.E / a.Emax * 100)).toFixed(0)}%;background:var(--good)"></i></div></td></tr>
+      <tr><td>Age</td><td class="v">${a.age} / ${Math.round(a.life)}</td><td></td></tr>
+      <tr><td>Generation · parent</td><td class="v">${a.gen} · ${a.parent ? '#' + a.parent : 'founder'}</td><td></td></tr>
+      <tr><td>Children${a.sp === 'pred' ? ' · kills' : ''}</td><td class="v">${a.kids}${a.sp === 'pred' ? ' · ' + a.kills : ''}</td><td></td></tr>
+      ${rows}
+    </table>`;
+}
+
+// ---------- CSV ----------
+$('copyCsv').onclick = () => {
+  const cols = ['step', 'prey', 'predators', 'grass_fraction'];
+  for (const sp of ['prey', 'pred']) for (const i of TRAITS) cols.push(`${sp}_${GENES[i].key}`);
+  const lines = [cols.join(',')];
+  for (const d of world.hist) {
+    const r = [d.t, d.prey, d.pred, d.grass.toFixed(4)];
+    for (const sp of ['prey', 'pred']) for (const i of TRAITS) r.push(d.m[sp] ? pheno(i, d.m[sp][i]).toFixed(4) : '');
+    lines.push(r.join(','));
+  }
+  const csv = lines.join('\n');
+  const fb = () => { const ta = $('csvFallback'); ta.hidden = false; ta.value = csv; ta.select(); $('toast').textContent = 'Clipboard blocked here. Select the text below and copy it.'; };
+  try { navigator.clipboard.writeText(csv).then(() => { $('toast').textContent = `Copied ${world.hist.length.toLocaleString()} rows.`; }, fb); } catch (e) { fb(); }
+};
+
+// ---------- boot ----------
+window.addEventListener('resize', () => { sizeWorld(); drawAll(); });
+const themeChange = () => { readColours(); drawAll(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChange);
+new MutationObserver(themeChange).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+readColours();
+applyPreset('balanced');
+reset();
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
